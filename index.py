@@ -1,7 +1,6 @@
 """
 The indexer of Search.
 """
-
 import math
 import re
 import copy
@@ -14,12 +13,17 @@ from nltk.stem import PorterStemmer
 
 from numpy import tile
 
+from file_io import write_docs_file, write_title_file, write_words_file
+
 
 class Indexer:
     def __init__(self, xml_path: str, title_path: str, docs_path: str, words_path: str):
         """
         doc string goes here!
         """
+        if len(sys.argv) - 1 != 4:
+            raise TypeError('Wrong number of arguments!')
+
         self.xml_path = xml_path
         self.title_path = title_path
         self.docs_path = docs_path
@@ -29,7 +33,6 @@ class Indexer:
         self.id_to_link = {}
         self.word_doc_count = {}
         self.word_doc_relevance = {}
-        self.weight_dictionary = {}
         self.id_to_pagerank = {}
 
         root: Element = et.parse(self.xml_path).getroot()
@@ -47,6 +50,12 @@ class Indexer:
 
         self.fill_word_doc_count_helper()
         self.fill_word_doc_relevance()
+        self.refill_id_to_link()
+        self.fill_id_to_pagerank()
+
+        write_title_file(self.title_path, self.dictionary)
+        write_docs_file(self.docs_path, self.id_to_pagerank)
+        write_words_file(self.words_path, self.word_doc_relevance)
 
     def get_key(self, dict, val):
         for key, value in dict.items():
@@ -65,13 +74,10 @@ class Indexer:
             if brackets in word:
                 word = word.replace('[[', '').replace(']]', '')
                 words = word.split("|")
-                t = self.get_key(self.dictionary, words[0])
                 if id not in self.id_to_link:
-                    if t in self.dictionary and id != t:
-                        self.id_to_link[id] = [t]
+                    self.id_to_link[id] = [words[0]]
                 else:
-                    if t in self.dictionary and id != t and t not in self.id_to_link[id]:
-                        self.id_to_link[id].append(t)
+                    self.id_to_link[id].append(words[0])
                 if len(words) > 1:
                     new_words = re.findall(n_regex, ''.join(words[1:]))
                     str.extend(new_words)
@@ -131,30 +137,48 @@ class Indexer:
 
                 self.word_doc_relevance[word][id] = self.word_doc_relevance[word][id] * idf
 
+    def refill_id_to_link(self):
+
+        for id in self.id_to_link.keys():
+            new_list = []
+            for title in self.id_to_link[id]:
+                t = self.get_key(self.dictionary, title)
+                if t in self.dictionary and id != t and t not in new_list:
+                    new_list.append(t)
+            self.id_to_link[id] = copy.deepcopy(new_list)
+
     def fill_id_to_pagerank(self):
 
         l = len(self.dictionary.keys())
-        r = [0 for x in range(l)]
-        r_n = [1 / l for x in range(l)]
 
-        distance = math.sqrt(sum([(r_n[x] - r[x]) ** 2 for x in range(l)]))
+        r = {}
+        for id in self.dictionary.keys():
+            r[id] = 0
+
+        r_n = {}
+        for id in self.dictionary.keys():
+            r_n[id] = 1 / l
+
+        distance = 1
 
         while distance > 0.001:
-            r = r_n
+            r = copy.deepcopy(r_n)
             for id2 in self.dictionary.keys():
-                r_n[id2-1] = 0
+                r_n[id2] = 0
                 for id1 in self.dictionary.keys():
                     if id1 not in self.id_to_link:
-                        self.id_to_link[id1] = self.dictionary.keys()
+                        self.id_to_link[id1] = list(
+                            self.dictionary.keys())
+                        self.id_to_link[id1].remove(id1)
 
                     if id2 not in self.id_to_link[id1]:
-                        r_n[id2-1] = r_n[id2-1] + r[id1-1] * 0.15 / l
+                        r_n[id2] = r_n[id2] + r[id1] * 0.15 / l
 
                     else:
-                        r_n[id2-1] = r_n[id2-1] + r[id1-1] * (0.15 / l + (
+                        r_n[id2] = r_n[id2] + r[id1] * (0.15 / l + (
                             1 - 0.15) * 1 / len(self.id_to_link[id1]))
-            print(distance)
 
+            distance = math.sqrt(
+                sum([(r_n[x] - r[x]) ** 2 for x in r_n.keys()]))
 
-i = Indexer("PageRankExample1.xml", "1", "2", "3")
-i.fill_id_to_pagerank()
+        self.id_to_pagerank = copy.deepcopy(r_n)
