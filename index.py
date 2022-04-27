@@ -1,6 +1,7 @@
 """
 The indexer of Search.
 """
+from collections import defaultdict
 import math
 import re
 import copy
@@ -31,7 +32,7 @@ class Indexer:
         self.word_corpus = set()
         self.dictionary = {}
         self.id_to_link = {}
-        self.word_doc_count = {}
+        self.word_doc_count = defaultdict(lambda: defaultdict(lambda: 0))
         self.word_doc_relevance = {}
         self.id_to_pagerank = {}
 
@@ -48,7 +49,6 @@ class Indexer:
             self.word_corpus.update(words)
             self.fill_word_doc_count(words, id)
 
-        self.fill_word_doc_count_helper()
         self.fill_word_doc_relevance()
         self.refill_id_to_link()
         self.fill_id_to_pagerank()
@@ -93,41 +93,23 @@ class Indexer:
     def fill_word_doc_count(self, words, id):
 
         for word in words:
-            if word not in self.word_doc_count:
-                self.word_doc_count[word] = {}
-                self.word_doc_count[word][id] = 1
-            else:
-                if id not in self.word_doc_count[word]:
-                    self.word_doc_count[word][id] = 1
-                else:
-                    self.word_doc_count[word][id] = self.word_doc_count[word][id] + 1
 
-    def fill_word_doc_count_helper(self):
-
-        for word in self.word_corpus:
-            for id in self.dictionary.keys():
-                if id not in self.word_doc_count[word]:
-                    self.word_doc_count[word][id] = 0
+            self.word_doc_count[word][id] += 1
 
     def fill_word_doc_relevance(self):
 
-        max_occur = {}
-        max = 0
-        word_number = {}
-
-        for id in self.dictionary.keys():
-            for word in self.word_corpus:
-                if self.word_doc_count[word][id] > max:
-                    max = self.word_doc_count[word][id]
-
-                if self.word_doc_count[word][id] != 0 and word not in word_number:
-                    word_number[word] = 1
-                elif self.word_doc_count[word][id] != 0:
-                    word_number[word] = word_number[word] + 1
-
-            max_occur[id] = max
+        max_occur = defaultdict(lambda: 0)
+        word_number = defaultdict(lambda: 0)
 
         self.word_doc_relevance = copy.deepcopy(self.word_doc_count)
+
+        for word in self.word_corpus:
+            for id in self.dictionary.keys():
+                if self.word_doc_count[word][id] > max_occur[id]:
+                    max_occur[id] = self.word_doc_count[word][id]
+
+                if self.word_doc_count[word][id] != 0:
+                    word_number[word] += 1
 
         for word in self.word_corpus:
             for id in self.dictionary.keys():
@@ -151,13 +133,9 @@ class Indexer:
 
         l = len(self.dictionary.keys())
 
-        r = {}
-        for id in self.dictionary.keys():
-            r[id] = 0
+        r = defaultdict(lambda: 0)
 
-        r_n = {}
-        for id in self.dictionary.keys():
-            r_n[id] = 1 / l
+        r_n = defaultdict(lambda: 1 / l)
 
         distance = 1
 
