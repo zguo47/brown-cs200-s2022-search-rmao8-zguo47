@@ -182,3 +182,7 @@ class Indexer:
                 sum([(r_n[x] - r[x]) ** 2 for x in r_n.keys()]))
 
         self.id_to_pagerank = copy.deepcopy(r_n)
+
+
+if __name__ == "__main__":
+    i = Indexer(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
