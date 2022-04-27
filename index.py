@@ -31,6 +31,7 @@ class Indexer:
         self.words_path = words_path
         self.word_corpus = set()
         self.dictionary = {}
+        self.title_to_id = {}
         self.id_to_link = {}
         self.word_doc_count = defaultdict(lambda: defaultdict(lambda: 0))
         self.word_doc_relevance = {}
@@ -40,9 +41,10 @@ class Indexer:
         all_pages: et.ElementTree = root.findall("page")
 
         for page in all_pages:
-            title: str = page.find('title').text
+            title: str = page.find('title').text.strip()
             id: int = int(page.find('id').text.strip())
-            self.dictionary[id] = title.replace('\n', '')
+            self.dictionary[id] = title
+            self.title_to_id[title] = id
             text: str = page.find('text').text.strip()
 
             words = self.token_stop_stem(title, id, text)
@@ -56,11 +58,6 @@ class Indexer:
         write_title_file(self.title_path, self.dictionary)
         write_docs_file(self.docs_path, self.id_to_pagerank)
         write_words_file(self.words_path, self.word_doc_relevance)
-
-    def get_key(self, dict, val):
-        for key, value in dict.items():
-            if val == value:
-                return key
 
     def token_stop_stem(self, title, id, text):
 
@@ -124,9 +121,10 @@ class Indexer:
         for id in self.id_to_link.keys():
             new_list = []
             for title in self.id_to_link[id]:
-                t = self.get_key(self.dictionary, title)
-                if t in self.dictionary and id != t and t not in new_list:
-                    new_list.append(t)
+                if title in self.title_to_id:
+                    t = self.title_to_id[title]
+                    if id != t and t not in new_list:
+                        new_list.append(t)
             self.id_to_link[id] = copy.deepcopy(new_list)
 
     def fill_id_to_pagerank(self):
