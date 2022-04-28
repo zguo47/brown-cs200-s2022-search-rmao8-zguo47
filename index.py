@@ -31,7 +31,7 @@ class Indexer:
         self.words_path = words_path
         self.word_corpus = set()
         self.dictionary = {}
-        self.title_to_id = {}
+        self.title_to_id = defaultdict(lambda: -1)
         self.id_to_link = {}
         self.word_doc_count = defaultdict(lambda: defaultdict(lambda: 0))
         self.word_doc_relevance = {}
@@ -52,7 +52,7 @@ class Indexer:
             self.fill_word_doc_count(words, id)
 
         self.fill_word_doc_relevance()
-        self.refill_id_to_link()
+        # self.refill_id_to_link()
         self.fill_id_to_pagerank()
 
         write_title_file(self.title_path, self.dictionary)
@@ -72,9 +72,11 @@ class Indexer:
                 word = word.replace('[[', '').replace(']]', '')
                 words = word.split("|")
                 if id not in self.id_to_link:
-                    self.id_to_link[id] = [words[0]]
+                    if self.title_to_id[words[0]] != id:
+                        self.id_to_link[id] = [words[0]]
                 else:
-                    self.id_to_link[id].append(words[0])
+                    if self.title_to_id[words[0]] != id and words[0] not in self.id_to_link[id]:
+                        self.id_to_link[id].append(words[0])
                 if len(words) > 1:
                     new_words = re.findall(n_regex, ''.join(words[1:]))
                     str.extend(new_words)
@@ -116,16 +118,16 @@ class Indexer:
 
                 self.word_doc_relevance[word][id] = self.word_doc_relevance[word][id] * idf
 
-    def refill_id_to_link(self):
+    # def refill_id_to_link(self):
 
-        for id in self.id_to_link.keys():
-            new_list = []
-            for title in self.id_to_link[id]:
-                if title in self.title_to_id:
-                    t = self.title_to_id[title]
-                    if id != t and t not in new_list:
-                        new_list.append(t)
-            self.id_to_link[id] = copy.deepcopy(new_list)
+    #     for id in self.id_to_link.keys():
+    #         new_list = []
+    #         for title in self.id_to_link[id]:
+    #             if title in self.title_to_id:
+    #                 t = self.title_to_id[title]
+    #                 if id != t and t not in new_list:
+    #                     new_list.append(t)
+    #         self.id_to_link[id] = copy.deepcopy(new_list)
 
     def fill_id_to_pagerank(self):
 
@@ -144,15 +146,16 @@ class Indexer:
                 for id1 in self.dictionary.keys():
                     if id1 not in self.id_to_link:
                         self.id_to_link[id1] = list(
-                            self.dictionary.keys())
-                        self.id_to_link[id1].remove(id1)
+                            self.dictionary.values())
+                        self.id_to_link[id1].remove(self.dictionary[id1])
 
-                    if id2 not in self.id_to_link[id1]:
+                    if self.dictionary[id2] not in self.id_to_link[id1]:
                         r_n[id2] = r_n[id2] + r[id1] * 0.15 / l
 
                     else:
                         r_n[id2] = r_n[id2] + r[id1] * (0.15 / l + (
-                            1 - 0.15) * 1 / len(self.id_to_link[id1]))
+                            1 - 0.15) * 1 / len([x for x in self.id_to_link[id1]
+                                                 if x in self.dictionary.values()]))
 
             distance = math.sqrt(
                 sum([(r_n[x] - r[x]) ** 2 for x in r_n.keys()]))
