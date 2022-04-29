@@ -3,6 +3,7 @@ The indexer of Search.
 """
 from collections import defaultdict
 import math
+import cProfile
 import re
 import copy
 from typing import final
@@ -11,6 +12,8 @@ import xml.etree.ElementTree as et
 import sys
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
+import pstats
+
 
 from numpy import tile
 
@@ -29,11 +32,10 @@ class Indexer:
         self.title_path = title_path
         self.docs_path = docs_path
         self.words_path = words_path
-        self.word_corpus = set()
         self.dictionary = {}
         self.title_to_id = {}
         self.id_to_link = {}
-        self.word_doc_count = defaultdict(lambda: defaultdict(lambda: 0))
+        self.word_doc_count = {}
         self.word_doc_relevance = {}
         self.id_to_pagerank = {}
 
@@ -47,9 +49,7 @@ class Indexer:
             self.title_to_id[title] = id
             text: str = page.find('text').text.strip()
 
-            words = self.token_stop_stem(title, id, text)
-            self.word_corpus.update(words)
-            self.fill_word_doc_count(words, id)
+            self.token_stop_stem(title, id, text)
 
         self.fill_word_doc_relevance()
         self.refill_id_to_link()
@@ -61,10 +61,10 @@ class Indexer:
 
     def token_stop_stem(self, title, id, text):
 
+        nltk_test = PorterStemmer()
         STOP_WORDS = set(stopwords.words('english'))
         n_regex = '''\[\[[^\[]+?\]\]|[a-zA-Z0-9]+'[a-zA-Z0-9]+|[a-zA-Z0-9]+'''
         str = re.findall(n_regex, title + ' ' + text)
-        final = []
 
         for word in str:
             brackets = "[["
@@ -83,34 +83,37 @@ class Indexer:
                     str.extend(new_words)
             else:
                 if word not in STOP_WORDS:
-                    nltk_test = PorterStemmer()
-                    final.append(nltk_test.stem(word))
-        return final
-
-    def fill_word_doc_count(self, words, id):
-
-        for word in words:
-
-            self.word_doc_count[word][id] += 1
+                    w = nltk_test.stem(word)
+                    if w not in self.word_doc_count:
+                        self.word_doc_count[w] = {}
+                        self.word_doc_count[w][id] = 1
+                    else:
+                        if id not in self.word_doc_count[w]:
+                            self.word_doc_count[w][id] = 1
+                        else:
+                            self.word_doc_count[w][id] += 1
 
     def fill_word_doc_relevance(self):
 
         max_occur = defaultdict(lambda: 0)
         word_number = defaultdict(lambda: 0)
 
-        self.word_doc_relevance = copy.deepcopy(self.word_doc_count)
+        self.word_doc_relevance = defaultdict(lambda: defaultdict(lambda: 0))
 
-        for word in self.word_corpus:
+        for word in self.word_doc_count.keys():
             for id in self.dictionary.keys():
+                if id not in self.word_doc_count[word]:
+                    self.word_doc_count[word][id] = 0
+
                 if self.word_doc_count[word][id] > max_occur[id]:
                     max_occur[id] = self.word_doc_count[word][id]
 
                 if self.word_doc_count[word][id] != 0:
                     word_number[word] += 1
 
-        for word in self.word_corpus:
+        for word in self.word_doc_count.keys():
             for id in self.dictionary.keys():
-                self.word_doc_relevance[word][id] = self.word_doc_relevance[word][id] / max_occur[id]
+                self.word_doc_relevance[word][id] = self.word_doc_count[word][id] / max_occur[id]
 
                 idf = math.log(len(self.dictionary) / word_number[word])
 
@@ -157,8 +160,16 @@ class Indexer:
             distance = math.sqrt(
                 sum([(r_n[x] - r[x]) ** 2 for x in r_n.keys()]))
 
-        self.id_to_pagerank = copy.deepcopy(r_n)
+        self.id_to_pagerank = r_n
 
 
 if __name__ == "__main__":
+    # with cProfile.Profile() as pr:
+    #     i = Indexer(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
+
+    # pr.dump_stats('stats.txt')
+    # with open("results.txt", "w") as f:
+    #     ps = pstats.Stats("stats.txt", stream=f)
+    #     ps.sort_stats('cumulative')
+    #     ps.print_stats()
     i = Indexer(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
