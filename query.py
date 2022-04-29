@@ -1,3 +1,4 @@
+from collections import defaultdict
 import sys
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
@@ -18,7 +19,7 @@ class Query:
 if __name__ == "__main__":
         if len(sys.argv) - 1 == 3:
             query = Query(sys.argv[1], sys.argv[2], sys.argv[3])
-            query.id_to_pagerank = {x: 1 for x in query.id_to_pagerank}
+            query.id_to_pagerank = defaultdict(lambda:1)
         elif len(sys.argv) - 1 == 4:
             if sys.argv[1] == "--pagerank":
                 query = Query(sys.argv[2], sys.argv[3], sys.argv[4])
@@ -38,9 +39,8 @@ if __name__ == "__main__":
                 if w not in STOP_WORDS:
                     nltk_test = PorterStemmer()
                     word.append(nltk_test.stem(w)) 
-            relevance = {id: sum([query.word_doc_relevance[w][id]for w in word if w in query.word_doc_relevance.keys()]) * query.id_to_pagerank[id]for id in query.dictionary.keys()}
+            relevance = {id: sum([0 if id not in query.word_doc_relevance[w].keys() else query.word_doc_relevance[w][id] for w in word]) * query.id_to_pagerank[id] for id in query.dictionary.keys()}
             print([query.dictionary[sorted(relevance, key=relevance.get)[x]] for x in range(len(relevance) - 1, len(relevance) - 11, -1)])
-            
                     
             print(word)
             print(i.upper())
