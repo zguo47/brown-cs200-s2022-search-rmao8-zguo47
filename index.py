@@ -3,7 +3,6 @@ The indexer of Search.
 """
 from collections import defaultdict
 import math
-import cProfile
 import re
 import copy
 from typing import final
@@ -12,8 +11,6 @@ import xml.etree.ElementTree as et
 import sys
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
-import pstats
-
 
 from numpy import tile
 
@@ -101,9 +98,7 @@ class Indexer:
         self.word_doc_relevance = defaultdict(lambda: defaultdict(lambda: 0))
 
         for word in self.word_doc_count.keys():
-            for id in self.dictionary.keys():
-                if id not in self.word_doc_count[word]:
-                    self.word_doc_count[word][id] = 0
+            for id in self.word_doc_count[word]:
 
                 if self.word_doc_count[word][id] > max_occur[id]:
                     max_occur[id] = self.word_doc_count[word][id]
@@ -112,7 +107,7 @@ class Indexer:
                     word_number[word] += 1
 
         for word in self.word_doc_count.keys():
-            for id in self.dictionary.keys():
+            for id in self.word_doc_count[word]:
                 self.word_doc_relevance[word][id] = self.word_doc_count[word][id] / max_occur[id]
 
                 idf = math.log(len(self.dictionary) / word_number[word])
@@ -145,7 +140,7 @@ class Indexer:
             for id2 in self.dictionary.keys():
                 r_n[id2] = 0
                 for id1 in self.dictionary.keys():
-                    if id1 not in self.id_to_link:
+                    if id1 not in self.id_to_link or len(self.id_to_link[id1]) == 0:
                         self.id_to_link[id1] = list(
                             self.dictionary.keys())
                         self.id_to_link[id1].remove(id1)
@@ -164,12 +159,4 @@ class Indexer:
 
 
 if __name__ == "__main__":
-    # with cProfile.Profile() as pr:
-    #     i = Indexer(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
-
-    # pr.dump_stats('stats.txt')
-    # with open("results.txt", "w") as f:
-    #     ps = pstats.Stats("stats.txt", stream=f)
-    #     ps.sort_stats('cumulative')
-    #     ps.print_stats()
     i = Indexer(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
